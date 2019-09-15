@@ -1,0 +1,45 @@
+---
+# tasks file for snelson_redhat.ocp_offline.repos
+- name: Install Required Tools
+  yum:
+    name:
+      - yum-utils
+      - createrepo
+
+- name: Sync Repos
+  command: reposync --gpgcheck -lm --repoid={{ item.name }} --download_path={{ repo_path }}
+  with_items:
+    - {{ yum_repo_list }}
+
+- name: Create Repos
+  command: createrepo -v {{ repo_list }}{{ item.name }} -o {{ repo_path }}{{ item.name }}
+  with_items:
+    - {{ yum_repo_list }}
+
+- name: Install HTTPD
+  yum:
+    name: httpd
+    state: present
+
+- name: Fix SELinux for HTTPD
+  sefcontext:
+    target: {{ repo_path }}
+    setype: httpd_sys_content_t
+  vars: repo_path=/var/www/html/repos
+
+- name: Apply new SELinux file context to filesystem
+  command: restorecon -irv /var/www/html/rpms
+
+- name: Start HTTPD
+  service:
+    name: httpd
+    enabled: true
+    state: started
+
+- name: Set Up OSEv3 Repos
+  yum_repository:
+    name: rhel-7-server-ose-3.11-rpms
+    baseurl: http://repos.example.com:8888/repos/rhel-7-server-ose-3.11-rpms/
+    enabled: true
+    gpgcheck: false
+    state: present
